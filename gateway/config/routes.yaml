@@ -2,14 +2,27 @@
 # Maps incoming paths to backend microservices
 
 routes:
+  # Exact match: /api/products only
   - path: /api/products
     service_url: http://localhost:8001
     auth_required: false
 
+  # Exact match: /api/users only
   - path: /api/users
     service_url: http://localhost:8002
     auth_required: true
 
+  # Parameter match: /api/users/123, /api/users/abc
+  - path: /api/users/:id
+    service_url: http://localhost:8002
+    auth_required: true
+
+  # Prefix match: /api/users/123/profile, /api/users/123/anything
+  - path: /api/users/:id/*
+    service_url: http://localhost:8002
+    auth_required: true
+
+  # Exact match: /api/orders only
   - path: /api/orders
     service_url: http://localhost:8003
     auth_required: true

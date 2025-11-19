@@ -20,7 +20,7 @@ class Settings:
     ROUTES_FILE: Path = CONFIG_DIR / "routes.yaml"
 
     # HTTP client settings
-    REQUEST_TIMEOUT: int = 30  # seconds
+    REQUEST_TIMEOUT: int = 590  # seconds
 
     # JWT settings (for validating tokens from external auth services)
     JWT_SECRET: str = os.getenv("JWT_SECRET", "dev-secret-key-change-in-production")

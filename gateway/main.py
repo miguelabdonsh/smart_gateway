@@ -11,22 +11,27 @@ from typing import Dict, List, Any
 
 from gateway.config.settings import settings
 from gateway.core.proxy import forward_request
+from gateway.core.router import Router
 from gateway.middleware.auth import check_auth
 
 
 # Load routes from YAML configuration
 routes_config: List[Dict[str, Any]] = []
+router: Router | None = None
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Load configuration on startup and cleanup on shutdown."""
-    global routes_config
+    global routes_config, router
 
     # Startup
     with open(settings.ROUTES_FILE, "r") as f:
         config = yaml.safe_load(f)
         routes_config = config.get("routes", [])
+
+    # Initialize router
+    router = Router(routes_config)
 
     print(f"Loaded {len(routes_config)} routes from configuration")
 
@@ -73,14 +78,15 @@ async def route_request(request: Request, path: str):
     """
     full_path = f"/{path}"
 
+    # Find matching route using router engine
+    matched_route, path_params = router.match(full_path)
+
+    if not matched_route:
+        return {"error": "Route not found", "path": full_path}
+
     # Check authentication
     check_auth(request, routes_config)
 
-    # Find matching route
-    for route in routes_config:
-        if full_path.startswith(route["path"]):
-            target_url = route["service_url"]
-            return await forward_request(request, target_url)
-
-    # No route found
-    return {"error": "Route not found", "path": full_path}
+    # Forward request to backend service
+    target_url = matched_route["service_url"]
+    return await forward_request(request, target_url)
