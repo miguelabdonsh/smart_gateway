@@ -11,6 +11,7 @@ from typing import Dict, List, Any
 
 from gateway.config.settings import settings
 from gateway.core.proxy import forward_request
+from gateway.middleware.auth import check_auth
 
 
 # Load routes from YAML configuration
@@ -71,6 +72,9 @@ async def route_request(request: Request, path: str):
         Response from backend service
     """
     full_path = f"/{path}"
+
+    # Check authentication
+    check_auth(request, routes_config)
 
     # Find matching route
     for route in routes_config:

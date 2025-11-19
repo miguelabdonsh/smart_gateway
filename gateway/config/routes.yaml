@@ -4,9 +4,12 @@
 routes:
   - path: /api/products
     service_url: http://localhost:8001
+    auth_required: false
 
   - path: /api/users
     service_url: http://localhost:8002
+    auth_required: true
 
   - path: /api/orders
     service_url: http://localhost:8003
+    auth_required: true

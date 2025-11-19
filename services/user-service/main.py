@@ -5,9 +5,16 @@ This service generates realistic user data using Faker.
 Includes profiles, addresses and authentication data.
 """
 
+import jwt
+from datetime import datetime, timedelta, timezone
 from fastapi import FastAPI, Query, HTTPException
 from faker import Faker
+from pydantic import BaseModel
 from typing import List, Dict, Any
+
+# JWT Configuration (same as gateway)
+JWT_SECRET = "dev-secret-key-change-in-production"
+JWT_ALGORITHM = "HS256"
 
 # Initialize FastAPI
 app = FastAPI(
@@ -20,6 +27,19 @@ app = FastAPI(
 fake = Faker()
 
 
+class LoginRequest(BaseModel):
+    """Login credentials."""
+    username: str
+    password: str
+
+
+# Fake users database
+FAKE_USERS = {
+    "admin": "admin123",
+    "test": "test123"
+}
+
+
 @app.get("/health")
 def health_check() -> Dict[str, str]:
     """
@@ -29,6 +49,38 @@ def health_check() -> Dict[str, str]:
         Service status
     """
     return {"status": "healthy", "service": "user-service"}
+
+
+@app.post("/login")
+def login(credentials: LoginRequest) -> Dict[str, str]:
+    """
+    User login endpoint - generates JWT token.
+
+    Args:
+        credentials: Username and password
+
+    Returns:
+        JWT access token
+
+    Raises:
+        HTTPException: If credentials are invalid
+    """
+    # Validate credentials
+    if credentials.username not in FAKE_USERS:
+        raise HTTPException(status_code=401, detail="Invalid username or password")
+
+    if FAKE_USERS[credentials.username] != credentials.password:
+        raise HTTPException(status_code=401, detail="Invalid username or password")
+
+    # Create JWT token
+    expire = datetime.now(timezone.utc) + timedelta(hours=24)
+    token_data = {
+        "sub": credentials.username,
+        "exp": expire
+    }
+    token = jwt.encode(token_data, JWT_SECRET, algorithm=JWT_ALGORITHM)
+
+    return {"access_token": token, "token_type": "bearer"}
 
 
 @app.get("/api/users")

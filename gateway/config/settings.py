@@ -4,6 +4,7 @@ Gateway configuration settings.
 Centralized configuration for the API Gateway.
 """
 
+import os
 from pathlib import Path
 
 
@@ -20,6 +21,10 @@ class Settings:
 
     # HTTP client settings
     REQUEST_TIMEOUT: int = 30  # seconds
+
+    # JWT settings (for validating tokens from external auth services)
+    JWT_SECRET: str = os.getenv("JWT_SECRET", "dev-secret-key-change-in-production")
+    JWT_ALGORITHM: str = "HS256"
 
 
 settings = Settings()
