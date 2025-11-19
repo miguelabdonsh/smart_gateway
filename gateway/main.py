@@ -12,26 +12,45 @@ from typing import Dict, List, Any
 from gateway.config.settings import settings
 from gateway.core.proxy import forward_request
 from gateway.core.router import Router
+from gateway.core.load_balancer import LoadBalancer
 from gateway.middleware.auth import check_auth
 
 
 # Load routes from YAML configuration
 routes_config: List[Dict[str, Any]] = []
 router: Router | None = None
+load_balancer: LoadBalancer | None = None
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Load configuration on startup and cleanup on shutdown."""
-    global routes_config, router
+    global routes_config, router, load_balancer
 
     # Startup
     with open(settings.ROUTES_FILE, "r") as f:
         config = yaml.safe_load(f)
         routes_config = config.get("routes", [])
 
-    # Initialize router
+    # Generate service URLs from replicas configuration
+    for route in routes_config:
+        if "service" in route:
+            service = route["service"]
+            port = service.get("port")
+            replicas = service.get("replicas", 1)
+
+            # Generate URLs for all replicas
+            service_urls = []
+            for replica_index in range(replicas):
+                instance_port = port + (replica_index * 10)
+                service_urls.append(f"http://localhost:{instance_port}")
+
+            # Store generated URLs in route config
+            route["service_urls"] = service_urls
+
+    # Initialize router and load balancer
     router = Router(routes_config)
+    load_balancer = LoadBalancer()
 
     print(f"Loaded {len(routes_config)} routes from configuration")
 
@@ -87,6 +106,12 @@ async def route_request(request: Request, path: str):
     # Check authentication
     check_auth(request, routes_config)
 
+    # Get target URL with load balancing
+    instances = matched_route["service_urls"]
+    target_url = load_balancer.get_instance(matched_route["path"], instances)
+
+    # Log forwarding for verification
+    print(f"→ Forwarding {request.method} {full_path} to: {target_url}")
+
     # Forward request to backend service
-    target_url = matched_route["service_url"]
     return await forward_request(request, target_url)

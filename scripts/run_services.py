@@ -1,10 +1,7 @@
 """
-Script to run all backend microservices.
+Script to run all backend microservices with configurable replicas.
 
-This script starts:
-- product-service on port 8001
-- user-service on port 8002
-- order-service on port 8003
+Reads gateway/config/routes.yaml (single source of truth).
 
 Usage:
     uv run scripts/run_services.py
@@ -13,6 +10,7 @@ Usage:
 import subprocess
 import sys
 import time
+import yaml
 from pathlib import Path
 
 
@@ -20,70 +18,79 @@ def main():
     """Main function that runs all backend microservices."""
 
     project_root = Path(__file__).parent.parent
+    config_file = project_root / "gateway" / "config" / "routes.yaml"
+
+    # Load routes configuration
+    with open(config_file, "r") as f:
+        config = yaml.safe_load(f)
+
+    routes = config.get("routes", [])
+
+    # Extract unique services (avoid duplicates from multiple routes)
+    services_map = {}
+    for route in routes:
+        service = route.get("service", {})
+        service_name = service.get("name")
+        if service_name and service_name not in services_map:
+            services_map[service_name] = service
+
+    services = list(services_map.values())
 
     print("\n" + "="*60)
     print("  STARTING BACKEND MICROSERVICES")
     print("="*60 + "\n")
 
-    services = [
-        {
-            "name": "Product Service",
-            "module": "services.product-service.main:app",
-            "port": 8001,
-        },
-        {
-            "name": "User Service",
-            "module": "services.user-service.main:app",
-            "port": 8002,
-        },
-        {
-            "name": "Order Service",
-            "module": "services.order-service.main:app",
-            "port": 8003,
-        },
-    ]
-
     processes = []
 
     try:
         for service in services:
-            print(f"Starting {service['name']} on port {service['port']}...")
+            replicas = service.get("replicas", 1)
+            base_port = service.get("port")
+            module = service.get("module")
 
-            cmd = [
-                sys.executable,
-                "-m",
-                "uvicorn",
-                service["module"],
-                "--host", "0.0.0.0",
-                "--port", str(service["port"]),
-                "--reload"
-            ]
+            # Start replicas
+            for replica_index in range(replicas):
+                port = base_port + (replica_index * 10)
+                instance_name = service["name"]
+                if replicas > 1:
+                    instance_name += f" #{replica_index + 1}"
 
-            process = subprocess.Popen(
-                cmd,
-                cwd=project_root,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-                bufsize=1
-            )
+                print(f"Starting {instance_name} on port {port}...")
 
-            processes.append({
-                "process": process,
-                "name": service["name"],
-                "port": service["port"],
-            })
+                cmd = [
+                    sys.executable,
+                    "-m",
+                    "uvicorn",
+                    module,
+                    "--host", "0.0.0.0",
+                    "--port", str(port),
+                    "--reload"
+                ]
 
-            time.sleep(1)
+                process = subprocess.Popen(
+                    cmd,
+                    cwd=project_root,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                    bufsize=1
+                )
+
+                processes.append({
+                    "process": process,
+                    "name": instance_name,
+                    "port": port,
+                })
+
+                time.sleep(1)
 
         print("\n" + "="*60)
         print("  ALL MICROSERVICES STARTED")
         print("="*60)
 
-        print("\nAvailable services:")
-        print("  Product Service: http://localhost:8001/docs")
-        print("  User Service:    http://localhost:8002/docs")
-        print("  Order Service:   http://localhost:8003/docs")
+        print("\nRunning instances:")
+        for proc in processes:
+            print(f"  {proc['name']}: http://localhost:{proc['port']}/docs")
 
         print("\nPress Ctrl+C to stop all services\n")
 

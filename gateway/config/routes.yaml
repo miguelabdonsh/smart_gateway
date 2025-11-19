@@ -1,28 +1,48 @@
 # Gateway routing configuration
-# Maps incoming paths to backend microservices
+# Single source of truth for routes and service configuration
 
 routes:
-  # Exact match: /api/products only
+  # Product service - single instance
   - path: /api/products
-    service_url: http://localhost:8001
+    service:
+      name: product-service
+      module: services.product-service.main:app
+      port: 8001
+      replicas: 1
     auth_required: false
 
-  # Exact match: /api/users only
+  # User service - load balanced with 3 replicas
   - path: /api/users
-    service_url: http://localhost:8002
+    service:
+      name: user-service
+      module: services.user-service.main:app
+      port: 8002
+      replicas: 3  # Generates instances on ports 8002, 8012, 8022
     auth_required: true
 
-  # Parameter match: /api/users/123, /api/users/abc
+  # User by ID - parameter match
   - path: /api/users/:id
-    service_url: http://localhost:8002
+    service:
+      name: user-service
+      module: services.user-service.main:app
+      port: 8002
+      replicas: 3
     auth_required: true
 
-  # Prefix match: /api/users/123/profile, /api/users/123/anything
+  # User profile - prefix match
   - path: /api/users/:id/*
-    service_url: http://localhost:8002
+    service:
+      name: user-service
+      module: services.user-service.main:app
+      port: 8002
+      replicas: 3
     auth_required: true
 
-  # Exact match: /api/orders only
+  # Order service - single instance
   - path: /api/orders
-    service_url: http://localhost:8003
+    service:
+      name: order-service
+      module: services.order-service.main:app
+      port: 8003
+      replicas: 1
     auth_required: true
