@@ -13,4 +13,5 @@ dependencies = [
     "faker>=37.5.0",
     "pyyaml>=6.0.2",
     "pyjwt>=2.10.1",
+    "cachetools>=6.2.2",
 ]
