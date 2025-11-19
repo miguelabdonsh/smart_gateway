@@ -1,0 +1,12 @@
+# Gateway routing configuration
+# Maps incoming paths to backend microservices
+
+routes:
+  - path: /api/products
+    service_url: http://localhost:8001
+
+  - path: /api/users
+    service_url: http://localhost:8002
+
+  - path: /api/orders
+    service_url: http://localhost:8003

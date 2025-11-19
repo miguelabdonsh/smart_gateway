@@ -1,10 +1,13 @@
 """
-Script to run all microservices simultaneously.
+Script to run all backend microservices.
 
 This script starts:
 - product-service on port 8001
 - user-service on port 8002
 - order-service on port 8003
+
+Usage:
+    uv run scripts/run_services.py
 """
 
 import subprocess
@@ -12,66 +15,42 @@ import sys
 import time
 from pathlib import Path
 
-# Colors for terminal output
-class Colors:
-    HEADER = '\033[95m'
-    BLUE = '\033[94m'
-    GREEN = '\033[92m'
-    YELLOW = '\033[93m'
-    RED = '\033[91m'
-    END = '\033[0m'
-    BOLD = '\033[1m'
-
-
-def print_colored(message: str, color: str) -> None:
-    """Print message with color."""
-    print(f"{color}{message}{Colors.END}")
-
 
 def main():
-    """Main function that runs all services."""
+    """Main function that runs all backend microservices."""
 
-    # Verify we are in the correct directory
     project_root = Path(__file__).parent.parent
 
-    print_colored("\n" + "="*60, Colors.HEADER)
-    print_colored("  STARTING MICROSERVICES", Colors.HEADER + Colors.BOLD)
-    print_colored("="*60 + "\n", Colors.HEADER)
+    print("\n" + "="*60)
+    print("  STARTING BACKEND MICROSERVICES")
+    print("="*60 + "\n")
 
-    # Service configuration
     services = [
         {
             "name": "Product Service",
             "module": "services.product-service.main:app",
             "port": 8001,
-            "color": Colors.GREEN
         },
         {
             "name": "User Service",
             "module": "services.user-service.main:app",
             "port": 8002,
-            "color": Colors.BLUE
         },
         {
             "name": "Order Service",
             "module": "services.order-service.main:app",
             "port": 8003,
-            "color": Colors.YELLOW
         },
     ]
 
     processes = []
 
     try:
-        # Start each service
         for service in services:
-            print_colored(
-                f"Starting {service['name']} on port {service['port']}...",
-                service['color']
-            )
+            print(f"Starting {service['name']} on port {service['port']}...")
 
             cmd = [
-                sys.executable,  # Use current Python
+                sys.executable,
                 "-m",
                 "uvicorn",
                 service["module"],
@@ -80,7 +59,6 @@ def main():
                 "--reload"
             ]
 
-            # Start process
             process = subprocess.Popen(
                 cmd,
                 cwd=project_root,
@@ -94,63 +72,46 @@ def main():
                 "process": process,
                 "name": service["name"],
                 "port": service["port"],
-                "color": service["color"]
             })
-
-            time.sleep(1)  # Small pause between services
-
-        print_colored("\n" + "="*60, Colors.GREEN)
-        print_colored("  ALL SERVICES STARTED", Colors.GREEN + Colors.BOLD)
-        print_colored("="*60, Colors.GREEN)
-
-        print("\nAvailable services:")
-        print_colored("  Product Service: http://localhost:8001/docs", Colors.GREEN)
-        print_colored("  User Service:    http://localhost:8002/docs", Colors.BLUE)
-        print_colored("  Order Service:   http://localhost:8003/docs", Colors.YELLOW)
-
-        print_colored("\nPress Ctrl+C to stop all services\n", Colors.HEADER)
-
-        # Keep script running and show logs
-        while True:
-            for service_info in processes:
-                process = service_info["process"]
-
-                # Check if process is still alive
-                if process.poll() is not None:
-                    print_colored(
-                        f"\n[ERROR] {service_info['name']} stopped unexpectedly",
-                        Colors.RED
-                    )
-                    raise KeyboardInterrupt
 
             time.sleep(1)
 
-    except KeyboardInterrupt:
-        print_colored("\n\nStopping services...", Colors.YELLOW)
+        print("\n" + "="*60)
+        print("  ALL MICROSERVICES STARTED")
+        print("="*60)
 
-        # Terminate all processes
+        print("\nAvailable services:")
+        print("  Product Service: http://localhost:8001/docs")
+        print("  User Service:    http://localhost:8002/docs")
+        print("  Order Service:   http://localhost:8003/docs")
+
+        print("\nPress Ctrl+C to stop all services\n")
+
+        while True:
+            for service_info in processes:
+                if service_info["process"].poll() is not None:
+                    print(f"\n[ERROR] {service_info['name']} stopped unexpectedly")
+                    raise KeyboardInterrupt
+            time.sleep(1)
+
+    except KeyboardInterrupt:
+        print("\n\nStopping services...")
+
         for service_info in processes:
             try:
                 service_info["process"].terminate()
                 service_info["process"].wait(timeout=5)
-                print_colored(
-                    f"  {service_info['name']} stopped",
-                    service_info["color"]
-                )
+                print(f"  {service_info['name']} stopped")
             except subprocess.TimeoutExpired:
                 service_info["process"].kill()
-                print_colored(
-                    f"  {service_info['name']} forced to close",
-                    Colors.RED
-                )
+                print(f"  {service_info['name']} forced to close")
 
-        print_colored("\nAll services stopped correctly", Colors.GREEN)
+        print("\nAll services stopped correctly")
         sys.exit(0)
 
     except Exception as e:
-        print_colored(f"\n[ERROR] {str(e)}", Colors.RED)
+        print(f"\n[ERROR] {str(e)}")
 
-        # Clean up processes in case of error
         for service_info in processes:
             try:
                 service_info["process"].terminate()
