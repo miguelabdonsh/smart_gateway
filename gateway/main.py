@@ -4,16 +4,21 @@ Smart API Gateway - Main application.
 This is the core gateway application that routes requests to backend microservices.
 """
 
+import signal
+import sys
 import yaml
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
-from typing import Dict, List, Any
+from typing import Any, Dict, List
 
+from gateway.api import auth_router, health_router
 from gateway.config.settings import settings
+from gateway.core.load_balancer import LoadBalancer
 from gateway.core.proxy import forward_request
 from gateway.core.router import Router
-from gateway.core.load_balancer import LoadBalancer
 from gateway.middleware.auth import check_auth
+from gateway.middleware.logging import LoggingMiddleware
+from gateway.middleware.rate_limit import RateLimitMiddleware
 
 
 # Load routes from YAML configuration
@@ -52,11 +57,18 @@ async def lifespan(app: FastAPI):
     router = Router(routes_config)
     load_balancer = LoadBalancer()
 
+    # Store in app state for readiness checks
+    app.state.router = router
+    app.state.load_balancer = load_balancer
+
     print(f"Loaded {len(routes_config)} routes from configuration")
 
     yield
 
-    # Shutdown (cleanup if needed)
+    # Shutdown cleanup
+    print("Shutting down gateway gracefully...")
+    app.state.router = None
+    app.state.load_balancer = None
 
 
 # Initialize FastAPI
@@ -64,23 +76,27 @@ app = FastAPI(
     title="Smart API Gateway",
     description="Lightweight API Gateway for microservices with intelligent routing",
     version="1.0.0",
-    lifespan=lifespan
+    lifespan=lifespan,
 )
 
+# Add middlewares (order matters: last added = first executed)
+app.add_middleware(RateLimitMiddleware, default_rpm=100)
+app.add_middleware(LoggingMiddleware)
 
-@app.get("/health")
-async def health_check() -> Dict[str, Any]:
-    """
-    Gateway health check endpoint.
+# Include routers
+app.include_router(health_router)
+app.include_router(auth_router)
 
-    Returns:
-        Service status
-    """
-    return {
-        "status": "healthy",
-        "service": "api-gateway",
-        "routes_loaded": len(routes_config)
-    }
+
+# Graceful shutdown handler
+def handle_shutdown(signum, frame):
+    """Handle shutdown signals gracefully."""
+    print(f"\nReceived signal {signum}, shutting down gracefully...")
+    sys.exit(0)
+
+
+signal.signal(signal.SIGINT, handle_shutdown)
+signal.signal(signal.SIGTERM, handle_shutdown)
 
 
 @app.api_route("/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
